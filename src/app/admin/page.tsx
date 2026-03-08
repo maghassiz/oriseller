@@ -152,7 +152,7 @@ export default function AdminPage() {
               <SubmissionCard
                 key={s.id} s={s}
                 onVerify={() => verify(s.id)}
-                onApprove={(mrr, rev, ord) => approve(s.id, mrr, rev, ord)}
+                onApprove={(mrr: number, rev: number, ord: number) => approve(s.id, mrr, rev, ord)}
                 onReject={() => reject(s.id)}
                 actionLoading={actionLoading}
               />
