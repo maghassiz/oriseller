@@ -111,15 +111,35 @@ export async function POST(req: NextRequest) {
         if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
 
         const data = JSON.parse(rawText)
-        const payments = data.data || []
+        console.log('Mayar data keys:', Object.keys(data))
+        if (data.data && typeof data.data === 'object') {
+          console.log('Mayar data.data keys:', Array.isArray(data.data) ? 'is array len=' + data.data.length : Object.keys(data.data))
+        }
+
+        // Find payments array
+        let payments: any[] = []
+        if (Array.isArray(data.data)) {
+          payments = data.data
+        } else if (Array.isArray(data.data?.data)) {
+          payments = data.data.data
+        } else if (Array.isArray(data.data?.results)) {
+          payments = data.data.results
+        } else if (Array.isArray(data.data?.items)) {
+          payments = data.data.items
+        } else {
+          console.log('Mayar full response:', JSON.stringify(data).substring(0, 500))
+          return NextResponse.json({ error: `Mayar: cannot find payments array. Keys: ${data.data ? Object.keys(data.data).join(', ') : 'data is ' + typeof data.data}` }, { status: 500 })
+        }
+
+        console.log('Mayar payments found:', payments.length)
         totalOrders = payments.length
-        totalRevenue = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) * 100
+        totalRevenue = payments.reduce((s: number, p: any) => s + Number(p.amount || p.total || p.grand_total || 0), 0) * 100
         const now = new Date()
         const thisMonth = payments.filter((p: any) => {
-          const d = new Date(p.createdAt || p.created_at)
+          const d = new Date(p.createdAt || p.created_at || p.paid_at)
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
         })
-        mrr = thisMonth.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) * 100
+        mrr = thisMonth.reduce((s: number, p: any) => s + Number(p.amount || p.total || p.grand_total || 0), 0) * 100
       }
 
       if (sub.platform === 'lynk') {
