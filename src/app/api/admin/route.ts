@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
         let res: Response
         try {
-          res = await fetch('https://api.mayar.id/hl/v1/payment/list?status=paid&pageSize=100', {
+          res = await fetch('https://api.mayar.id/hl/v1/transaction/paidtransaction?pageSize=100', {
             headers: { 'Authorization': `Bearer ${sub.api_key}` }
           })
         } catch (fetchErr: any) {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
 
         const data = JSON.parse(rawText)
-        console.log('Mayar data keys:', Object.keys(data))
+        console.log('Mayar FULL response:', JSON.stringify(data).substring(0, 1000))
         if (data.data && typeof data.data === 'object') {
           console.log('Mayar data.data keys:', Array.isArray(data.data) ? 'is array len=' + data.data.length : Object.keys(data.data))
         }
