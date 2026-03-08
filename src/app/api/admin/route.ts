@@ -96,18 +96,36 @@ export async function POST(req: NextRequest) {
       if (sub.platform === 'mayar') {
         console.log('Calling Mayar API for:', sub.username)
 
-        let res: Response
-        try {
-          res = await fetch('https://api.mayar.id/hl/v1/transaction/paidtransaction?pageSize=100', {
-            headers: { 'Authorization': `Bearer ${sub.api_key}` }
-          })
-        } catch (fetchErr: any) {
-          return NextResponse.json({ error: `Mayar network error: ${fetchErr.message}` }, { status: 500 })
+        // Try multiple Mayar endpoints to find the correct one
+        const mayarEndpoints = [
+          'https://api.mayar.id/hl/v1/transaction/paidtransaction?pageSize=100',
+          'https://api.mayar.id/hl/v1/payment?status=paid&pageSize=100',
+          'https://api.mayar.id/hl/v1/payments?status=paid&pageSize=100',
+          'https://api.mayar.id/hl/v1/invoice?pageSize=100',
+          'https://api.mayar.club/hl/v1/transaction/paidtransaction?pageSize=100',
+          'https://api.mayar.club/hl/v1/payment?status=paid&pageSize=100',
+          'https://api.mayar.club/hl/v1/invoice?pageSize=100',
+        ]
+
+        let res: Response = new Response()
+        let rawText = ''
+        let workingEndpoint = ''
+
+        for (const endpoint of mayarEndpoints) {
+          try {
+            console.log('Trying Mayar endpoint:', endpoint)
+            res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${sub.api_key}` } })
+            rawText = await res.text()
+            console.log('  Status:', res.status, 'Body:', rawText.substring(0, 150))
+            if (res.ok || res.status !== 404) { workingEndpoint = endpoint; break }
+          } catch (e: any) {
+            console.log('  Error:', e.message)
+          }
         }
 
-        const rawText = await res.text()
-        console.log('Mayar status:', res.status, 'body:', rawText.substring(0, 300))
-
+        if (!workingEndpoint) {
+          return NextResponse.json({ error: 'Mayar: semua endpoint dicoba gagal. Cek API key kamu.' }, { status: 500 })
+        }
         if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
 
         const data = JSON.parse(rawText)
