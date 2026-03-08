@@ -94,70 +94,35 @@ export async function POST(req: NextRequest) {
       }
 
       if (sub.platform === 'mayar') {
-        console.log('Calling Mayar API for:', sub.username)
+        console.log('Calling Mayar balance API for:', sub.username)
 
-        // Try multiple Mayar endpoints to find the correct one
-        const mayarEndpoints = [
-          'https://api.mayar.id/hl/v1/transaction/paidtransaction?pageSize=100',
-          'https://api.mayar.id/hl/v1/payment?status=paid&pageSize=100',
-          'https://api.mayar.id/hl/v1/payments?status=paid&pageSize=100',
-          'https://api.mayar.id/hl/v1/invoice?pageSize=100',
-          'https://api.mayar.club/hl/v1/transaction/paidtransaction?pageSize=100',
-          'https://api.mayar.club/hl/v1/payment?status=paid&pageSize=100',
-          'https://api.mayar.club/hl/v1/invoice?pageSize=100',
-        ]
-
-        let res: Response = new Response()
-        let rawText = ''
-        let workingEndpoint = ''
-
-        for (const endpoint of mayarEndpoints) {
-          try {
-            console.log('Trying Mayar endpoint:', endpoint)
-            res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${sub.api_key}` } })
-            rawText = await res.text()
-            console.log('  Status:', res.status, 'Body:', rawText.substring(0, 150))
-            if (res.ok || res.status !== 404) { workingEndpoint = endpoint; break }
-          } catch (e: any) {
-            console.log('  Error:', e.message)
-          }
+        let res: Response
+        try {
+          res = await fetch('https://api.mayar.id/hl/v1/balance', {
+            headers: { 'Authorization': `Bearer ${sub.api_key}` }
+          })
+        } catch (fetchErr: any) {
+          return NextResponse.json({ error: `Mayar network error: ${fetchErr.message}` }, { status: 500 })
         }
 
-        if (!workingEndpoint) {
-          return NextResponse.json({ error: 'Mayar: semua endpoint dicoba gagal. Cek API key kamu.' }, { status: 500 })
-        }
+        const rawText = await res.text()
+        console.log('Mayar balance status:', res.status, 'body:', rawText.substring(0, 300))
+
         if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
 
         const data = JSON.parse(rawText)
-        console.log('Mayar FULL response:', JSON.stringify(data).substring(0, 1000))
-        if (data.data && typeof data.data === 'object') {
-          console.log('Mayar data.data keys:', Array.isArray(data.data) ? 'is array len=' + data.data.length : Object.keys(data.data))
+        if (data.statusCode !== 200) {
+          return NextResponse.json({ error: `Mayar error: ${data.messages}` }, { status: 500 })
         }
 
-        // Find payments array
-        let payments: any[] = []
-        if (Array.isArray(data.data)) {
-          payments = data.data
-        } else if (Array.isArray(data.data?.data)) {
-          payments = data.data.data
-        } else if (Array.isArray(data.data?.results)) {
-          payments = data.data.results
-        } else if (Array.isArray(data.data?.items)) {
-          payments = data.data.items
-        } else {
-          console.log('Mayar full response:', JSON.stringify(data).substring(0, 500))
-          return NextResponse.json({ error: `Mayar: cannot find payments array. Keys: ${data.data ? Object.keys(data.data).join(', ') : 'data is ' + typeof data.data}` }, { status: 500 })
-        }
+        const balance = data.data?.balance || 0
+        const balanceActive = data.data?.balanceActive || 0
 
-        console.log('Mayar payments found:', payments.length)
-        totalOrders = payments.length
-        totalRevenue = payments.reduce((s: number, p: any) => s + Number(p.amount || p.total || p.grand_total || 0), 0) * 100
-        const now = new Date()
-        const thisMonth = payments.filter((p: any) => {
-          const d = new Date(p.createdAt || p.created_at || p.paid_at)
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-        })
-        mrr = thisMonth.reduce((s: number, p: any) => s + Number(p.amount || p.total || p.grand_total || 0), 0) * 100
+        // balance is already in IDR (not cents), convert to cents
+        totalRevenue = balance * 100
+        mrr = 0 // balance endpoint doesn't provide monthly breakdown
+        totalOrders = 0
+        console.log('Mayar balance:', balance, 'active:', balanceActive)
       }
 
       if (sub.platform === 'lynk') {
