@@ -20,11 +20,11 @@ export function LeaderboardCard({ entry, showRankBadge = false }: { entry: any; 
         }}
         onMouseEnter={e => {
           (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
-          ;(e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'
+            ; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
-          ;(e.currentTarget as HTMLElement).style.boxShadow = 'none'
+            ; (e.currentTarget as HTMLElement).style.boxShadow = 'none'
         }}
       >
         {/* Rank */}
@@ -37,7 +37,7 @@ export function LeaderboardCard({ entry, showRankBadge = false }: { entry: any; 
         }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: (entry.rank <= 3 && !entry.is_featured) ? '#fff' : entry.is_featured ? '#fff' : '#6B6560' }}>
             {showRankBadge && entry.rank <= 3 && !entry.is_featured
-              ? ['🥇','🥈','🥉'][entry.rank - 1]
+              ? ['🥇', '🥈', '🥉'][entry.rank - 1]
               : `#${entry.rank}`}
           </span>
         </div>
@@ -57,8 +57,10 @@ export function LeaderboardCard({ entry, showRankBadge = false }: { entry: any; 
 
         {/* Revenue */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.15rem', color: entry.is_featured ? '#fff' : '#1A1714' }}>{formatIDRShort(entry.verified_mrr)}</div>
-          <div style={{ fontSize: '0.72rem', color: entry.is_featured ? 'rgba(255,255,255,0.5)' : '#9C9590', fontWeight: 500 }}>MRR / bulan</div>
+          <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: '1.1rem', color: entry.is_featured ? '#fff' : '#1A1714' }}>{formatIDRShort(entry.verified_mrr)}</div>
+          <div style={{ fontSize: '0.68rem', color: entry.is_featured ? 'rgba(255,255,255,0.5)' : '#9C9590', fontWeight: 500 }}>MRR / bulan</div>
+          <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: '0.9rem', color: entry.is_featured ? 'rgba(255,255,255,0.7)' : '#6B6560', marginTop: '0.25rem' }}>{formatIDRShort(entry.verified_total_revenue)}</div>
+          <div style={{ fontSize: '0.68rem', color: entry.is_featured ? 'rgba(255,255,255,0.4)' : '#C0BBB5', fontWeight: 500 }}>total revenue</div>
         </div>
       </div>
     </Link>
