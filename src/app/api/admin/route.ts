@@ -10,7 +10,8 @@ function checkAuth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!checkAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = await createAdminClient()
-  const { data } = await supabase.from('submissions').select('*').order('submitted_at', { ascending: false })
+  const { data, error } = await supabase.from('submissions').select('*').order('submitted_at', { ascending: false })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ submissions: data || [] })
 }
 
@@ -22,7 +23,6 @@ export async function POST(req: NextRequest) {
   const supabase = await createAdminClient()
 
   if (action === 'verify') {
-    // Pull submission data
     const { data: sub } = await supabase.from('submissions').select('*').eq('id', id).single()
     if (!sub) return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
 
@@ -30,41 +30,84 @@ export async function POST(req: NextRequest) {
       let mrr = 0, totalRevenue = 0, totalOrders = 0
 
       if (sub.platform === 'scalev') {
-        const res = await fetch('https://api.scalev.com/v2/order', {
-          headers: { 'Authorization': `Bearer ${sub.api_key}` }
-        })
-        if (!res.ok) return NextResponse.json({ error: `Scalev API error: ${res.status} ${res.statusText}` })
-        const data = await res.json()
-        const orders = data.data || []
-        const paid = orders.filter((o: any) => o.status === 'paid' || o.payment_status === 'paid')
+        console.log('Calling Scalev API for:', sub.username)
+
+        let res: Response
+        try {
+          res = await fetch('https://api.scalev.com/v2/order', {
+            headers: { 'Authorization': `Bearer ${sub.api_key}` }
+          })
+        } catch (fetchErr: any) {
+          console.error('Scalev fetch error:', fetchErr)
+          return NextResponse.json({ error: `Scalev network error: ${fetchErr.message}` }, { status: 500 })
+        }
+
+        console.log('Scalev response status:', res.status)
+        const rawText = await res.text()
+        console.log('Scalev response body:', rawText.substring(0, 500))
+
+        if (!res.ok) {
+          return NextResponse.json({ error: `Scalev API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
+        }
+
+        let data: any
+        try {
+          data = JSON.parse(rawText)
+        } catch {
+          return NextResponse.json({ error: `Scalev returned invalid JSON: ${rawText.substring(0, 200)}` }, { status: 500 })
+        }
+
+        const orders = data.data || data.orders || data || []
+        console.log('Orders count:', Array.isArray(orders) ? orders.length : 'not array, keys: ' + Object.keys(data))
+
+        if (!Array.isArray(orders)) {
+          return NextResponse.json({ error: `Unexpected Scalev response shape. Keys: ${Object.keys(data).join(', ')}` }, { status: 500 })
+        }
+
+        const paid = orders.filter((o: any) => ['paid', 'success', 'completed'].includes(o.status || o.payment_status))
         totalOrders = paid.length
-        totalRevenue = paid.reduce((s: number, o: any) => s + (o.total || o.amount || 0), 0) * 100 // to cents
+        totalRevenue = paid.reduce((s: number, o: any) => s + Number(o.total || o.amount || o.grand_total || 0), 0) * 100
         const now = new Date()
         const thisMonth = paid.filter((o: any) => {
-          const d = new Date(o.created_at || o.paid_at)
+          const d = new Date(o.created_at || o.paid_at || o.updated_at)
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
         })
-        mrr = thisMonth.reduce((s: number, o: any) => s + (o.total || o.amount || 0), 0) * 100
+        mrr = thisMonth.reduce((s: number, o: any) => s + Number(o.total || o.amount || o.grand_total || 0), 0) * 100
       }
 
       if (sub.platform === 'mayar') {
-        const res = await fetch('https://api.mayar.id/hl/v1/payment/list?status=paid&pageSize=100', {
-          headers: { 'Authorization': `Bearer ${sub.api_key}` }
-        })
-        if (!res.ok) return NextResponse.json({ error: `Mayar API error: ${res.status}` })
-        const data = await res.json()
+        console.log('Calling Mayar API for:', sub.username)
+
+        let res: Response
+        try {
+          res = await fetch('https://api.mayar.id/hl/v1/payment/list?status=paid&pageSize=100', {
+            headers: { 'Authorization': `Bearer ${sub.api_key}` }
+          })
+        } catch (fetchErr: any) {
+          return NextResponse.json({ error: `Mayar network error: ${fetchErr.message}` }, { status: 500 })
+        }
+
+        const rawText = await res.text()
+        console.log('Mayar status:', res.status, 'body:', rawText.substring(0, 300))
+
+        if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
+
+        const data = JSON.parse(rawText)
         const payments = data.data || []
         totalOrders = payments.length
-        totalRevenue = payments.reduce((s: number, p: any) => s + (p.amount || 0), 0) * 100
+        totalRevenue = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) * 100
         const now = new Date()
         const thisMonth = payments.filter((p: any) => {
           const d = new Date(p.createdAt || p.created_at)
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
         })
-        mrr = thisMonth.reduce((s: number, p: any) => s + (p.amount || 0), 0) * 100
+        mrr = thisMonth.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) * 100
       }
 
-      // Update with verified data
+      if (sub.platform === 'lynk') {
+        return NextResponse.json({ error: 'Lynk tidak mendukung auto-verify. Gunakan input manual.' }, { status: 400 })
+      }
+
       await supabase.from('submissions').update({
         verified_mrr: mrr,
         verified_total_revenue: totalRevenue,
@@ -73,21 +116,26 @@ export async function POST(req: NextRequest) {
         verified_at: new Date().toISOString(),
       }).eq('id', id)
 
-      return NextResponse.json({ message: `✓ Verified & approved! MRR: Rp ${(mrr/100).toLocaleString('id-ID')}` })
+      return NextResponse.json({
+        message: `✓ Verified & approved! MRR: Rp ${(mrr / 100).toLocaleString('id-ID')} · Orders: ${totalOrders}`
+      })
+
     } catch (err: any) {
+      console.error('Verify error:', err)
       return NextResponse.json({ error: `Verification failed: ${err.message}` }, { status: 500 })
     }
   }
 
   if (action === 'approve') {
     const { mrr, total_revenue, total_orders } = body
-    await supabase.from('submissions').update({
+    const { error } = await supabase.from('submissions').update({
       status: 'approved',
       verified_mrr: mrr || 0,
       verified_total_revenue: total_revenue || 0,
       verified_total_orders: total_orders || 0,
       verified_at: new Date().toISOString(),
     }).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ message: '✓ Submission approved!' })
   }
 
