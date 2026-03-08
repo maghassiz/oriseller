@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
           orders = data.data.data
         } else if (Array.isArray(data.data?.items)) {
           orders = data.data.items
+        } else if (Array.isArray(data.data?.results)) {
+          orders = data.data.results
         } else if (Array.isArray(data.data?.orders)) {
           orders = data.data.orders
         } else {
