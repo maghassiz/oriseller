@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
 
         let res: Response
         try {
-          res = await fetch('https://api.mayar.id/hl/v1/balance', {
+          res = await fetch('https://api.mayar.club/hl/v1/balance', {
             headers: { 'Authorization': `Bearer ${sub.api_key}` }
           })
         } catch (fetchErr: any) {
@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
         const rawText = await res.text()
         console.log('Mayar balance status:', res.status, 'body:', rawText.substring(0, 300))
 
+        if (res.status === 401) return NextResponse.json({ error: 'Mayar: API key tidak valid atau sudah expired. Tolak submission ini.' }, { status: 500 })
         if (!res.ok) return NextResponse.json({ error: `Mayar API ${res.status}: ${rawText.substring(0, 200)}` }, { status: 500 })
 
         const data = JSON.parse(rawText)
