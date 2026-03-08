@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
         let res: Response
         try {
-          res = await fetch('https://api.scalev.com/v2/order', {
+          res = await fetch('https://api.scalev.id/v2/order', {
             headers: { 'Authorization': `Bearer ${sub.api_key}` }
           })
         } catch (fetchErr: any) {
