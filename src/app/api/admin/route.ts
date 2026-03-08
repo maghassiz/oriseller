@@ -57,12 +57,28 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: `Scalev returned invalid JSON: ${rawText.substring(0, 200)}` }, { status: 500 })
         }
 
-        const orders = data.data || data.orders || data || []
-        console.log('Orders count:', Array.isArray(orders) ? orders.length : 'not array, keys: ' + Object.keys(data))
-
-        if (!Array.isArray(orders)) {
-          return NextResponse.json({ error: `Unexpected Scalev response shape. Keys: ${Object.keys(data).join(', ')}` }, { status: 500 })
+        // Log full data.data shape to understand structure
+        console.log('data.data type:', typeof data.data, 'isArray:', Array.isArray(data.data))
+        if (data.data && typeof data.data === 'object') {
+          console.log('data.data keys:', Object.keys(data.data))
         }
+
+        // Scalev response: { code, status, data: { data: [...], total, ... } } or { data: [...] }
+        let orders: any[] = []
+        if (Array.isArray(data.data)) {
+          orders = data.data
+        } else if (Array.isArray(data.data?.data)) {
+          orders = data.data.data
+        } else if (Array.isArray(data.data?.items)) {
+          orders = data.data.items
+        } else if (Array.isArray(data.data?.orders)) {
+          orders = data.data.orders
+        } else {
+          // Last resort: log everything and return error with full shape
+          console.log('Full response:', JSON.stringify(data).substring(0, 500))
+          return NextResponse.json({ error: `Cannot find orders array. data.data keys: ${data.data ? Object.keys(data.data).join(', ') : 'null'}` }, { status: 500 })
+        }
+        console.log('Orders found:', orders.length)
 
         const paid = orders.filter((o: any) => ['paid', 'success', 'completed'].includes(o.status || o.payment_status))
         totalOrders = paid.length
